@@ -5,6 +5,23 @@ scene = Scene(host="mqtt.arenaxr.org", scene="grid-deformation")
 GRID_WIDTH = 5
 GRID_LENGTH = 5
 
+defidx = 0
+
+def reset_grid():
+    global grid
+    global morphs
+
+    morphs[0].value = 0
+    morphs[1].value = 0
+    morphs[2].value = 0
+    morphs[3].value = 0
+
+    for i in range(GRID_WIDTH):
+        for j in range(GRID_LENGTH):
+            g = grid[i][j]
+
+            g.update_morph(morphs)
+            scene.update_object(g)
 def deform_grid(i, j):
     global grid
     global morphs
@@ -88,6 +105,7 @@ def deform_grid(i, j):
         morphs[3].value = 0.5
         gi.update_morph(morphs)
         scene.update_object(gi)
+        
 
 @scene.run_once
 def make_grid():
@@ -118,7 +136,15 @@ def make_grid():
         grid.append(row)
 
 
-# @scene.run_forever(interval_ms=1000)
-# def periodic():
+@scene.run_forever(interval_ms=1000)
+def periodic():
+    global defidx
+
+    defidx = (defidx + 1) % (GRID_WIDTH * GRID_LENGTH)
+    defi = int(defidx / GRID_LENGTH)
+    defj = int(defidx % GRID_LENGTH)
+
+    reset_grid()s
+    deform_grid(defi, defj)
 
 scene.run_tasks()
