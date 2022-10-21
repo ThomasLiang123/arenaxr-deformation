@@ -91,16 +91,6 @@ def deform_grid(i, j):
 
             setMorphs(ii,jj,corner1,corner2,corner3,corner4)
 
-    # setMorphs(i,j,0.5,0.5,0.5,0.5)
-    # setMorphs(i-1,j,0.5,0.5,0,0)
-    # setMorphs(i+1,j,0,0,0.5,0.5)
-    # setMorphs(i,j-1,0.5,0,0.5,0)
-    # setMorphs(i,j+1,0,0.5,0,0.5)
-    # setMorphs(i-1,j-1,0.5,0,0,0)
-    # setMorphs(i-1,j+1,0,0.5,0,0)
-    # setMorphs(i+1,j-1,0,0,0.5,0)
-    # setMorphs(i+1,j+1,0,0,0,0.5)
-
 def click(scene, evt, msg):
     global lasti
     global lastj
