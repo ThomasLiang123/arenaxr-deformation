@@ -3,14 +3,21 @@ import math
 
 scene = Scene(host="mqtt.arenaxr.org", scene="grid-deformation")
 
-GRID_WIDTH = 20
-GRID_LENGTH = 20
+GRID_WIDTH = 40
+GRID_LENGTH = 40
+ITEM_SIZE = 0.2
 
-DEFORM_RADIUS = 2
+DEFORM_RADIUS = 1
 MAX_DEFORM = 0.5
 
 lasti = 0
 lastj = 0
+
+curr_user = None
+
+def user_join_callback(scene, cam, msg):
+    global curr_user
+    curr_user = cam
 
 def setMorphs(i, j, m1, m2, m3, m4):
     global grid
@@ -19,7 +26,7 @@ def setMorphs(i, j, m1, m2, m3, m4):
     if (i < 0 or j < 0 or i >= GRID_LENGTH or j >= GRID_WIDTH):
         return
 
-    g = grid[i][j]
+    g = grid[i*GRID_WIDTH + j]
     morphs[0].value = m1
     morphs[1].value = m2
     morphs[2].value = m3
@@ -31,20 +38,27 @@ def reset_at(i, j):
     global grid
     global morphs
 
+    changing = []
     for ii in range(i-DEFORM_RADIUS, i+DEFORM_RADIUS+1):
         for jj in range(j-DEFORM_RADIUS, j+DEFORM_RADIUS+1):
+            if (ii < 0 or jj < 0 or ii > GRID_WIDTH or jj > GRID_LENGTH):
+                continue
+
             setMorphs(ii,jj,0,0,0,0)
 
 def deform_func(x):
-
     return MAX_DEFORM / (1 + math.exp((8*MAX_DEFORM)*x - (4*MAX_DEFORM)))
 
 def deform_grid(i, j):
     global grid
     global morphs
 
+    changing = []
     for ii in range(i-DEFORM_RADIUS, i+DEFORM_RADIUS+1):
         for jj in range(j-DEFORM_RADIUS, j+DEFORM_RADIUS+1):
+            if (ii < 0 or jj < 0 or ii > GRID_WIDTH or jj > GRID_LENGTH):
+                continue
+
             idiff = float(ii - i)
             jdiff = float(jj - j)
 
@@ -118,23 +132,40 @@ def make_grid():
               Morph(morphtarget="corner3", value=0.0),
               Morph(morphtarget="corner4", value=0.0)]
 
-    for i in range(GRID_WIDTH):
+    for i in range(GRID_LENGTH):
         row = []
-        for j in range(GRID_LENGTH):
+        for j in range(GRID_WIDTH):
             item = GLTF(
                 object_id="deform-cube-"+str(i)+"-"+str(j),
-                position=(i,0.5,j),
-                scale=(0.5,0.5,0.5),
+                position=(i*ITEM_SIZE,ITEM_SIZE/2,j*ITEM_SIZE),
+                scale=(ITEM_SIZE/2,ITEM_SIZE/2,ITEM_SIZE/2),
                 action="create",
                 persist=True,
-                clickable=True,
-                evt_handler=click,
+                #clickable=True,
+                #evt_handler=click,
                 url="store/users/thomasliang/griditem.glb",
             )
             item.update_morph(morphs)
             scene.add_object(item)
-            row.append(item)
+            grid.append(item)
 
-        grid.append(row)
+@scene.run_forever(interval_ms=500)
+def line_follow():
+    global curr_user
+    global lasti
+    global lastj
 
+    if curr_user:
+        pos = curr_user.data.position
+        if 0 <= pos.x < ITEM_SIZE * GRID_WIDTH and 0 <= pos.z < ITEM_SIZE * GRID_LENGTH:
+            i = int(pos.x / ITEM_SIZE)
+            j = int(pos.z / ITEM_SIZE)
+
+            if lasti != i and lastj != j:
+                reset_at(lasti, lastj)
+                deform_grid(i, j)
+                lasti = i
+                lastj = j
+
+scene.user_join_callback = user_join_callback
 scene.run_tasks()
