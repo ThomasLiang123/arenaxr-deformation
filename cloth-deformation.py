@@ -5,15 +5,21 @@ import random
 # z positions - 0, 3, 4.5, 6 - offset = -1
 # y positions - 0, 3 - offset = -1
 
+CLOTH_WIDTH = 4
+CLOTH_HEIGHT = 7
+
 wind_y = 3.0
 wind_z = 0.0
-wind_force = 1
+force_set = 1
+force_offset = 0
 
 locations = []
+morphs = []
 
 scene = Scene(host="mqtt.arenaxr.org", scene="cloth-deformation")
 
 moving = 0
+force_change = 0
 
 def click_left(scene, evt, msg):
     global moving
@@ -47,6 +53,22 @@ def click_down(scene, evt, msg):
     elif evt.type == "mouseup":
         moving = 0
 
+def click_forward(scene, evt, msg):
+    global force_change
+
+    if evt.type == "mousedown":
+        force_change = 1
+    elif evt.type == "mouseup":
+        force_change = 0
+
+def click_backward(scene, evt, msg):
+    global force_change
+
+    if evt.type == "mousedown":
+        force_change = -1
+    elif evt.type == "mouseup":
+        force_change = 0
+
 @scene.run_once
 def make_cloth():
     global cloth
@@ -54,31 +76,24 @@ def make_cloth():
     global morphs
     global locations
 
-    morphs = [Morph(morphtarget="lower_left", value=0.0),
-              Morph(morphtarget="lower_middle", value=0.0),
-              Morph(morphtarget="lower_right", value=0.0),
-              Morph(morphtarget="middle_left", value=0.0),
-              Morph(morphtarget="middle_middle", value=0.0),
-              Morph(morphtarget="middle_right", value=0.0),
-              Morph(morphtarget="upper_left", value=0.0),
-              Morph(morphtarget="upper_middle", value=0.0),
-              Morph(morphtarget="upper_right", value=0.0)]
-
     cloth = GLTF(
         object_id="cloth",
-        position=(0, 0.5, -1),
+        position=(0, 0, 0),
         scale=(1, 1, 1),
         action="create",
-        persist=True,
-        url="store/users/thomasliang/cloth.glb",
+        url="store/users/thomasliang/cloth2.glb",
     )
 
-    locations = [(0,0,0),(0,1.5,1.5),(0,0,3),
-                 (0,3,0),(0,3.75,1.5),(0,3,3),
-                 (0,4.5,3),(0,5.25,1.5),(0,4.5,3)]
+    for i in range(CLOTH_HEIGHT-1):
+        for j in range(CLOTH_WIDTH):
+            locations.append((0,i,j))
+            morphs.append(Morph(morphtarget=str(i)+"-"+str(j), value=0.0))
 
     cloth.update_morph(morphs)
     scene.add_object(cloth)
+
+    print(locations)
+    print(morphs)
 
     wind_cone = Cone(
         object_id="wind_cone",
@@ -129,12 +144,33 @@ def make_cloth():
     )
     scene.add_object(down_button)
 
+    forward_button = Box(
+        object_id="forward_button",
+        position=(6.5, 0, -4),
+        scale=(1, 1, 1),
+        clickable=True,
+        evt_handler=click_forward,
+        color=(0, 0, 255),
+    )
+    scene.add_object(forward_button)
+
+    backward_button = Box(
+        object_id="backward_button",
+        position=(9.5, 0, -4),
+        scale=(1, 1, 1),
+        clickable=True,
+        evt_handler=click_backward,
+        color=(0, 0, 255),
+    )
+    scene.add_object(backward_button)
+
     deform()
 
 def distance(x, y):
     return math.sqrt(math.pow(y[0] - x[0], 2) + math.pow((y[1] - x[1]) * 0.1, 2) + math.pow(y[2] - x[2], 2))
 
 def deform_magnitude(dist):
+    wind_force = force_set + force_offset
     if dist == 0 or wind_force / dist > 1:
         return wind_force
 
@@ -144,30 +180,39 @@ def deform():
     global cloth
     global morphs
 
-    for i in range(9):
+    for i in range((CLOTH_HEIGHT-1) * CLOTH_WIDTH):
         loc = locations[i]
         dist = distance(loc, (0, wind_z, wind_y))
+        height_dist = CLOTH_HEIGHT - loc[1]
 
-        morphs[i].value = deform_magnitude(dist)
+        morphs[i].value = deform_magnitude(dist) * float(height_dist) / CLOTH_HEIGHT;
 
     cloth.update_morph(morphs)
     scene.update_object(cloth)
 
 @scene.run_forever(interval_ms=100)
 def wind_change():
-    global wind_force
+    global force_change
+    global force_set
+    global force_offset
     global wind_y
     global wind_z
     global wind_cone
+
+    force_set += force_change * 0.1
+    if force_set > 2:
+        force_set = 2
+    elif force_set < 0:
+        force_set = 0
 
     if moving == 1:
         if wind_y > 0:
             wind_y -= 0.1
     elif moving == 2:
-        if wind_y < 3:
+        if wind_y < CLOTH_WIDTH-1:
             wind_y += 0.1
     elif moving == 3:
-        if wind_z < 6:
+        if wind_z < CLOTH_HEIGHT-2:
             wind_z += 0.1
     elif moving == 4:
         if wind_z > 0:
@@ -177,11 +222,11 @@ def wind_change():
         wind_cone.update_attributes(position = (5, 0.5+wind_z, -wind_y))
         scene.update_object(wind_cone)
 
-    wind_force += float(random.randrange(-10,10)) / 100.0
-    if wind_force > 2:
-        wind_force = 2
-    elif wind_force < 0.5:
-        wind_force = 0.5
+    force_offset += float(random.randrange(-10,10)) / 100.0
+    if force_offset > 0.5 * force_set:
+        force_offset = 0.5 * force_set
+    elif force_offset < -0.5 * force_set:
+        force_offset = -0.5 * force_set
     deform()
 
 scene.run_tasks()
