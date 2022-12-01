@@ -92,9 +92,6 @@ def make_cloth():
     cloth.update_morph(morphs)
     scene.add_object(cloth)
 
-    print(locations)
-    print(morphs)
-
     wind_cone = Cone(
         object_id="wind_cone",
         position=(5, 0.5+wind_z, -wind_y),

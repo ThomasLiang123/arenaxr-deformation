@@ -7,7 +7,7 @@ GRID_WIDTH = 40
 GRID_LENGTH = 40
 ITEM_SIZE = 0.2
 
-DEFORM_RADIUS = 1
+DEFORM_RADIUS = 2
 MAX_DEFORM = 0.5
 
 lasti = 0
@@ -149,7 +149,7 @@ def make_grid():
             scene.add_object(item)
             grid.append(item)
 
-@scene.run_forever(interval_ms=500)
+@scene.run_forever(interval_ms=200)
 def line_follow():
     global curr_user
     global lasti
