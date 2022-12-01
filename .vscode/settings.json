@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "*.mm": "cpp",
-        "cstdlib": "cpp",
-        "iosfwd": "cpp",
-        "iostream": "cpp"
-    }
-}
