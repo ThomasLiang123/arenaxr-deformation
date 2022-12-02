@@ -22,6 +22,7 @@ struct Node {
 
 struct PrimitiveAttributes {
     uint32_t position;
+    uint32_t normal;
 };
 
 struct Primitive {
@@ -31,6 +32,8 @@ struct Primitive {
 
 struct Mesh {
     vector<Primitive> primitives;
+    vector<string> target_names;
+    string name;
 };
 
 struct BufferView {
@@ -79,6 +82,10 @@ int ismesh(char *key) {
     return -1;
 }
 
+Mesh *read_mesh(char *buffer) {
+    
+}
+
 void read_meshes(char *buffer) {
     char *value = (char *) malloc(256);
     int idx = 0;
@@ -102,6 +109,7 @@ void read_meshes(char *buffer) {
 
     value[idx] = '\0';
     printf("%s\n", value);
+    Mesh *mesh = read_mesh(value);
     free(value);
 }
 
