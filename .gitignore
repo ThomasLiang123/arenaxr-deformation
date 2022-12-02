@@ -1,3 +1,4 @@
-./glb-edit
-./jsondecode
-./.vscode/
+glb-edit
+jsondecode
+.vscode/
+.DS_Store
