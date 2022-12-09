@@ -1,5 +1,5 @@
-#ifndef JSONDECODE_HPP
-#define JSONDECODE_HPP
+#ifndef MORPHER_HPP
+#define MORPHER_HPP
 
 #include <iostream>
 #include <unistd.h>
