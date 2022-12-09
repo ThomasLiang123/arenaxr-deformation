@@ -148,7 +148,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
     Accessor idxacc = getaccessor(prim.indices, json);
     Accessor vertexposacc = getaccessor(prim.attributes.position, json);
     Accessor vertexnormacc = getaccessor(prim.attributes.normal, json);
-    vector<uint16_t> indices = readindexlist(buf, idxacc.offset, idxacc.count);
+    vector<uint16_t> indices = readindexlist(buf, idxacc.offset, vertexposacc.count);
 
     vector<VecFloat3> vertices;
     vector<MorphTarget> targets;
@@ -158,18 +158,26 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
     }
 
     // number of targets * number of vertices
-    char *newbin = (char *) malloc(indices.size() * sizeof(VecFloat3));
+    char *newbin = (char *) malloc(indices.size() * indices.size() * sizeof(VecFloat3));
     int offset = 0;
 
     vector<BufferView> bufferviews;
     vector<Accessor> accessors;
     vector<MorphTarget> morphtargets;
     vector<string> targetnames;
-
+    
     for (std::size_t i = 0; i < indices.size(); i++) {
-        uint16_t idx = indices[i];
-        VecFloat3 vertex = readvecfloat3(buf, vertexposacc.offset + idx * sizeof(VecFloat3));
-        VecFloat3 normal = readvecfloat3(buf, vertexnormacc.offset + idx * sizeof(VecFloat3));
+        VecFloat3 vertex = readvecfloat3(buf, vertexposacc.offset + i * sizeof(VecFloat3));
+        VecFloat3 normal = readvecfloat3(buf, vertexnormacc.offset + i * sizeof(VecFloat3));
+
+        int roundy = round(vertex.y * 10);
+        int roundz = round(vertex.z * 10);
+
+        string name = "m";
+        name += std::to_string(roundy);
+        name += ":";
+        name += std::to_string(roundz);
+        targetnames.push_back(name);
 
         VecFloat3 morph;
         // morph.x = vertex.x - normal.x;
@@ -180,7 +188,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
         morph.z = 0;
         vertices.push_back(vertex);
 
-        makemorphdata(vertex, morph, idx, indices.size(), newbin, offset);
+        makemorphdata(vertex, morph, i, indices.size(), newbin, offset);
 
         BufferView newbf;
         newbf.buffer = 0;
@@ -229,7 +237,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
     for (std::size_t i = 0; i < indices.size(); i++) {
         std::string mn = "m";
         mn += std::to_string(i);
-        json["meshes"][0]["extras"]["targetNames"][(int)i] = mn;
+        json["meshes"][0]["extras"]["targetNames"][(int)i] = targetnames[i];
         json["meshes"][0]["primitives"][0]["targets"][(int)i] = morphtargettojson(morphtargets[i]);
         json["accessors"][numaccessors + (int)i] = accessortojson(accessors[i]);
         json["bufferViews"][numbufferviews + (int)i] = bufferviewtojson(bufferviews[i]);

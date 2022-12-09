@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <memory>
+#include <math.h>
 #include <json/json.h>
 #include <json/reader.h>
 #include <json/writer.h>
