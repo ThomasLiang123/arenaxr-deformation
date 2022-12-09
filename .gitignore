@@ -2,3 +2,4 @@ glb-edit
 jsondecode
 .vscode/
 .DS_Store
+*.glb
