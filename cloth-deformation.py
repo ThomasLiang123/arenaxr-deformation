@@ -2,25 +2,35 @@ from arena import *
 import math
 import random
 
-# z positions - 0, 3, 4.5, 6 - offset = -1
-# y positions - 0, 3 - offset = -1
-
+# number of vertices in each dimension of the cloth
 CLOTH_WIDTH = 8
 CLOTH_HEIGHT = 14
 
+# wind variables
 wind_y = 3.0
 wind_z = 0.0
 force_set = 1
 force_offset = 0
 
+# locations of vertices and their respective morph targets
 locations = []
 morphs = []
 
 scene = Scene(host="mqtt.arenaxr.org", scene="cloth-deformation")
 
+# is the user moving the wind
+# 0 - not moving
+# 1 - left
+# 2 - right
+# 3 - down
+# 4 - up
 moving = 0
+
+# is the user changing the force
+# -1, 0, 1 (back, still, forward)
 force_change = 0
 
+# click handlers
 def click_left(scene, evt, msg):
     global moving
 
@@ -69,13 +79,15 @@ def click_backward(scene, evt, msg):
     elif evt.type == "mouseup":
         force_change = 0
 
+# object creation
 @scene.run_once
-def make_cloth():
+def make_scene():
     global cloth
     global wind_cone
     global morphs
     global locations
 
+    # make cloth object
     cloth = GLTF(
         object_id="cloth",
         position=(0, 0, 0),
@@ -84,16 +96,21 @@ def make_cloth():
         url="store/users/thomasliang/cloth4morph.glb",
     )
 
+    # for each vertex in the cloth, add location and respective morph
     for i in range(CLOTH_HEIGHT):
         for j in range(CLOTH_WIDTH+1):
+            # each vertex is separated by 0.5 units - so i and j / 2
+            locations.append((0,float(i)/2,float(j)/2))
+
+            # morph name format: "m" + y location * 10 + ":" + z location * 10
             y = i * 5
             z = -j * 5
-            locations.append((0,float(i)/2,float(j)/2))
             morphs.append(Morph(morphtarget="m"+str(y)+":"+str(z), value=0.0))
 
     cloth.update_morph(morphs)
     scene.add_object(cloth)
 
+    # wind location indicator cone
     wind_cone = Cone(
         object_id="wind_cone",
         position=(5, 0.5+wind_z, -wind_y),
@@ -103,6 +120,7 @@ def make_cloth():
     )
     scene.add_object(wind_cone)
 
+    # wind control UI
     panel = Box(
         object_id="panel",
         position=(8, 1.5, 3),
@@ -250,25 +268,33 @@ def make_cloth():
 
     deform()
 
+# 3D distance calculator
 def distance(x, y):
     return math.sqrt(math.pow(y[0] - x[0], 2) + math.pow((y[1] - x[1]) * 0.1, 2) + math.pow(y[2] - x[2], 2))
 
+# get deformation magnitude based on distance
+# formula is magnitude = force / (dist^2)
 def deform_magnitude(dist):
     wind_force = force_set + force_offset
+
+    # prevent magnitude from being too high (or infinity)
     if dist == 0 or wind_force / ((dist*2)) > wind_force:
         return wind_force
 
     return wind_force / ((dist*2))
 
+# deform all vertices of cloth
 def deform():
     global cloth
     global morphs
 
+    # for each vertex in the cloth, change morph value (deform)
     for i in range((CLOTH_HEIGHT) * (CLOTH_WIDTH+1)):
         loc = locations[i]
         dist = distance(loc, (0, wind_z, wind_y))
+        
+        # deform higher vertices less (to actually make it look like a cloth)
         height_dist = CLOTH_HEIGHT - loc[1]
-
         morphs[i].value = deform_magnitude(dist) * float(height_dist) / CLOTH_HEIGHT;
 
     cloth.update_morph(morphs)
@@ -283,12 +309,14 @@ def wind_change():
     global wind_z
     global wind_cone
 
+    # change force of wind if user wants
     force_set += force_change * 0.1
     if force_set > 2:
         force_set = 2
     elif force_set < 0:
         force_set = 0
 
+    # change location of wind if user wants
     if moving == 1:
         if wind_y > 0:
             wind_y -= 0.1
@@ -302,10 +330,12 @@ def wind_change():
         if wind_z > 0:
             wind_z -= 0.1
 
+    # move cone
     if moving > 0:
         wind_cone.update_attributes(position = (5, 0.5+wind_z, -wind_y))
         scene.update_object(wind_cone)
 
+    # randomly make slight changes to wind to simulate real wind
     force_offset += float(random.randrange(-10,10)) / 100.0
     if force_offset > 0.5 * force_set:
         force_offset = 0.5 * force_set

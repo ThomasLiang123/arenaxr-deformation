@@ -12,6 +12,7 @@
 #include <fstream>
 #include <memory>
 #include <math.h>
+// using jsoncpp opensource library
 #include <json/json.h>
 #include <json/reader.h>
 #include <json/writer.h>
@@ -26,6 +27,8 @@ struct VecFloat3 {
     float z;
 };
 
+// various glTF json values - refer to documentation
+// https://github.com/KhronosGroup/glTF-Tutorials/tree/master/gltfTutorial
 struct PrimitiveAttributes {
     uint32_t position; // accessor that points to bufferview that points to list of vertices (vecfloat3)
     uint32_t normal; // ... points to list of normals for vertices
@@ -66,24 +69,33 @@ struct BufferView {
     uint32_t target;
 };
 
+// decode entire glTF file
 int decode(char *filename);
 
+// decode json portion of glTF file
 Json::Value decodejson(int fd, uint32_t len);
 
+// get data and make morphs for primitive
 Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buflen, char **newbuf);
 
-Mesh getmesh(Json::Value json);
+// create primitive object from json value
 Primitive getprimitive(Json::Value json);
 
+// make morph buffer data for one morph (one vertex)
 void makemorphdata(VecFloat3 vertex, VecFloat3 normal, uint32_t index, uint32_t count, char *data, int offset);
 
+// create accessor object from json value
 Accessor getaccessor(uint32_t accessor, Json::Value json);
+
+// read vecfloat3 from binary data buffer
 VecFloat3 readvecfloat3(char *buf, uint32_t off);
 
+// convert to json
 Json::Value bufferviewtojson(BufferView bf);
 Json::Value accessortojson(Accessor acc);
 Json::Value morphtargettojson(MorphTarget mt);
 
+// read indices from binary data buffer
 vector<uint16_t> readindexlist(char *buf, uint32_t off, uint32_t length);
 
 #endif

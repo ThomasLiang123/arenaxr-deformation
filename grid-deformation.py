@@ -3,6 +3,7 @@ import math
 
 scene = Scene(host="mqtt.arenaxr.org", scene="grid-deformation")
 
+# grid dimensions (number of objects)
 GRID_WIDTH = 40
 GRID_LENGTH = 40
 ITEM_SIZE = 0.2
@@ -15,10 +16,12 @@ lastj = 0
 
 curr_user = None
 
+# change current user to newest joining user
 def user_join_callback(scene, cam, msg):
     global curr_user
     curr_user = cam
 
+# change morphs for one cube
 def setMorphs(i, j, m1, m2, m3, m4):
     global grid
     global morphs
@@ -34,6 +37,7 @@ def setMorphs(i, j, m1, m2, m3, m4):
     g.update_morph(morphs)
     scene.update_object(g)
 
+# reset morphs for all cubes within deform radius of one point
 def reset_at(i, j):
     global grid
     global morphs
@@ -46,9 +50,11 @@ def reset_at(i, j):
 
             setMorphs(ii,jj,0,0,0,0)
 
+# get deformation value
 def deform_func(x):
     return MAX_DEFORM / (1 + math.exp((8*MAX_DEFORM)*x - (4*MAX_DEFORM)))
 
+# deform all cubes within deform radius of one point
 def deform_grid(i, j):
     global grid
     global morphs
@@ -59,35 +65,40 @@ def deform_grid(i, j):
             if (ii < 0 or jj < 0 or ii > GRID_WIDTH or jj > GRID_LENGTH):
                 continue
 
+            # get x and y distances
             idiff = float(ii - i)
             jdiff = float(jj - j)
 
-            idefclose, ideffar, jdefclose, jdeffar = 0.0,0.0,0.0,0.0
+            # deformation values for the 4 top edges of the cube
+            ideflarge, idefsmall, jdeflarge, jdefsmall = 0.0,0.0,0.0,0.0
 
+            # if the cube location is smaller than the center, deform the larger edge more, and vice versa
+            # deform more by deforming it to the value of the next cube closer to the center (so that edge connects with it)
             if idiff < 0:
-                idefclose = deform_func(abs(idiff)-1)
-                ideffar = deform_func(abs(idiff))
+                ideflarge = deform_func(abs(idiff)-1)
+             idefsmall = deform_func(abs(idiff))
             elif idiff > 0:
-                ideffar = deform_func(abs(idiff)-1)
-                idefclose = deform_func(abs(idiff))
+             idefsmall = deform_func(abs(idiff)-1)
+                ideflarge = deform_func(abs(idiff))
             else:
-                idefclose = deform_func(abs(idiff))
-                ideffar = deform_func(abs(idiff))
+                ideflarge = deform_func(abs(idiff))
+             idefsmall = deform_func(abs(idiff))
 
             if jdiff < 0:
-                jdefclose = deform_func(abs(jdiff)-1)
-                jdeffar = deform_func(abs(jdiff))
+                jdeflarge = deform_func(abs(jdiff)-1)
+                jdefsmall = deform_func(abs(jdiff))
             elif jdiff > 0:
-                jdeffar = deform_func(abs(jdiff)-1)
-                jdefclose = deform_func(abs(jdiff))
+                jdefsmall = deform_func(abs(jdiff)-1)
+                jdeflarge = deform_func(abs(jdiff))
             else:
-                jdefclose = deform_func(abs(jdiff))
-                jdeffar = deform_func(abs(jdiff))
+                jdeflarge = deform_func(abs(jdiff))
+                jdefsmall = deform_func(abs(jdiff))
 
-            corner1 = idefclose+jdefclose
-            corner2 = idefclose+jdeffar
-            corner3 = ideffar+jdefclose
-            corner4 = ideffar+jdeffar
+            # calculate corner deformations from edges
+            corner1 = ideflarge+jdeflarge
+            corner2 = ideflarge+jdefsmall
+            corner3 = idefsmall+jdeflarge
+            corner4 = idefsmall+jdefsmall
 
             if idiff == -DEFORM_RADIUS:
                 corner3 = 0
@@ -105,6 +116,7 @@ def deform_grid(i, j):
 
             setMorphs(ii,jj,corner1,corner2,corner3,corner4)
 
+# click handler - not currently used
 def click(scene, evt, msg):
     global lasti
     global lastj
@@ -121,12 +133,14 @@ def click(scene, evt, msg):
     elif (evt.type == "mouseup"):
         reset_at(lasti, lastj)
 
+# make grid
 @scene.run_once
 def make_grid():
     global grid
     global morphs
     grid = []
 
+    # same morphs for every cube
     morphs = [Morph(morphtarget="corner1", value=0.0),
               Morph(morphtarget="corner2", value=0.0),
               Morph(morphtarget="corner3", value=0.0),
@@ -156,6 +170,7 @@ def line_follow():
     global lastj
 
     if curr_user:
+        # get user position and update dormation with it
         pos = curr_user.data.position
         if 0 <= pos.x < ITEM_SIZE * GRID_WIDTH and 0 <= pos.z < ITEM_SIZE * GRID_LENGTH:
             i = int(pos.x / ITEM_SIZE)

@@ -12,6 +12,7 @@ int main (int argc, char **argv) {
 }
 
 Primitive getprimitive(Json::Value json) {
+    // only handle the first primitive (one object)
     Json::Value primjson = json["meshes"][0]["primitives"][0];
     PrimitiveAttributes primattr;
     primattr.position = primjson["attributes"]["POSITION"].asUInt();
@@ -31,53 +32,51 @@ int decode(char *filename) {
         return 1;
     }
 
+    // read header
     uint32_t *header = (uint32_t *) malloc(12);
     read(fd, header, 12);
 
+    // check if gltf file
     if (memcmp(header, "glTF", 4) != 0) {
         std::cout<<"not gltf file"<<std::endl;
         return 1;
     }
 
+    // get length of file and version numbers from header
     uint32_t length = header[2];
     uint32_t version = header[1];
 
     free(header);
 
+    // read json header
     uint32_t *jsonheader = (uint32_t *) malloc(8);
     read(fd, jsonheader, 8);
 
+    // get json length
     uint32_t jsonLength = *jsonheader;
     free(jsonheader);
 
+    // decode json and get first primitive
     Json::Value json = decodejson(fd, jsonLength);
     Primitive prim = getprimitive(json);
 
+    // get binary data header
     header = (uint32_t *) malloc(8);
     read(fd, header, 8);
 
+    // get binary data length and read binary
     uint32_t binlen = header[0];
     char *binary = (char *) malloc(binlen);
     read(fd, binary, binlen);
     
     close(fd);
 
-    // Json::Value morphtargets = json["meshes"][0]["primitives"][0]["targets"];
-    // for (int i = 0; i < 3; i++) {
-    //     Accessor acc = getaccessor(morphtargets[i]["POSITION"].asUInt(), json);
-    //     uint32_t off = acc.offset;
-    //     for (uint32_t j = 0; j < acc.count; j++) {
-    //         VecFloat3 data = readvecfloat3(binary, off);
-    //         std::cout<<data.x<<" "<<data.y<<" "<<data.z<<std::endl;
-    //         off += sizeof(VecFloat3);
-    //     }
-    // }
-    // return 0;
-
+    // create new morph data
     char *newbin = NULL;
     Json::Value newjson = handleprimitive(prim, json, binary, binlen, &newbin);
     uint32_t newbinlen = newjson["buffers"][0]["byteLength"].asUInt();
     
+    // write new glTF to glb file
     Json::StreamWriterBuilder builder;
     builder["indentation"] = "";
     builder.settings_["precision"] = 15;
@@ -87,8 +86,6 @@ int decode(char *filename) {
         newjsonstr+=' ';
         newjsonlen++;
     }
-    std::cout<<jsonLength<<" "<<newjsonlen<<std::endl;
-    std::cout<<binlen<<" "<<newbinlen<<std::endl;
 
     char *newfilename = "morph.glb";
     int newfd = open(newfilename, O_CREAT | O_TRUNC | O_RDWR, 0666);
@@ -125,10 +122,12 @@ int decode(char *filename) {
 }
 
 Json::Value decodejson(int fd, uint32_t len) {
+    // read json text
     char *buffer = (char *) malloc(len+1);
     read(fd, buffer, len);
     buffer[len] = '\0';
 
+    // parse json with jsoncpp
     Json::Value root;
     Json::Reader reader;
     bool success = reader.parse(buffer, root);
@@ -145,6 +144,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
     int numaccessors = json["accessors"].size();
     int numbufferviews = json["bufferViews"].size();
 
+    // get accessors for primitive's indices, vertex positions, and vertex normals
     Accessor idxacc = getaccessor(prim.indices, json);
     Accessor vertexposacc = getaccessor(prim.attributes.position, json);
     Accessor vertexnormacc = getaccessor(prim.attributes.normal, json);
@@ -153,11 +153,12 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
     vector<VecFloat3> vertices;
     vector<MorphTarget> targets;
 
+    // create empty morph target vector
     for (std::size_t i = 0; i < indices.size(); i++) {
         targets.push_back(MorphTarget());
     }
 
-    // number of targets * number of vertices
+    // number of targets * number of vertices: each target's data will have data for all vertices
     char *newbin = (char *) malloc(indices.size() * indices.size() * sizeof(VecFloat3));
     int offset = 0;
 
@@ -166,36 +167,45 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
     vector<MorphTarget> morphtargets;
     vector<string> targetnames;
     
+    // for each vertex, create morph targets
     for (std::size_t i = 0; i < indices.size(); i++) {
+        // get vertex's position and normal
         VecFloat3 vertex = readvecfloat3(buf, vertexposacc.offset + i * sizeof(VecFloat3));
         VecFloat3 normal = readvecfloat3(buf, vertexnormacc.offset + i * sizeof(VecFloat3));
 
+        // create name
+        // get rounded position data to the nearest tenth (times ten)
         int roundy = round(vertex.y * 10);
         int roundz = round(vertex.z * 10);
 
+        // morph name format: "m" + y location * 10 + ":" + z location * 10
         string name = "m";
         name += std::to_string(roundy);
         name += ":";
         name += std::to_string(roundz);
         targetnames.push_back(name);
 
+        // create actual morph data
         VecFloat3 morph;
-        // morph.x = vertex.x - normal.x;
-        // morph.y = vertex.y - normal.y;
-        // morph.z = vertex.z - normal.z;
+        // morph.x = -normal.x;
+        // morph.y = -normal.y;
+        // morph.z = -normal.z;
         morph.x = -1;
         morph.y = 0;
         morph.z = 0;
         vertices.push_back(vertex);
 
+        // add morph data to morph binary data
         makemorphdata(vertex, morph, i, indices.size(), newbin, offset);
 
+        // make bufferview for morph data
         BufferView newbf;
         newbf.buffer = 0;
         newbf.byteLength = indices.size() * sizeof(VecFloat3);
         newbf.byteOffset = offset + buflen;
         newbf.target = 34962;
 
+        // make accessor for bufferview
         Accessor newacc;
         newacc.bufferview = i + numbufferviews;
         newacc.count = indices.size();
@@ -223,6 +233,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
             newacc.max.z = 0;
         }
 
+        // make morph target for accessor
         MorphTarget newmt;
         newmt.position = i + numaccessors;
         newmt.normal = prim.attributes.normal;
@@ -234,6 +245,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
         offset += indices.size() * sizeof(VecFloat3);
     }
 
+    // for each vertex, add morph, accessor, and bufferview into json
     for (std::size_t i = 0; i < indices.size(); i++) {
         std::string mn = "m";
         mn += std::to_string(i);
@@ -242,9 +254,11 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
         json["accessors"][numaccessors + (int)i] = accessortojson(accessors[i]);
         json["bufferViews"][numbufferviews + (int)i] = bufferviewtojson(bufferviews[i]);
     }
-
+    
+    // change bytelength entry in json to account for new morph data
     json["buffers"][0]["byteLength"] = offset + buflen;
 
+    // create new binary buffer for morph data
     *newbuf = (char *) malloc(offset + buflen);
     memcpy(*newbuf, buf, buflen);
     memcpy((*newbuf) + buflen, newbin, offset);
@@ -255,6 +269,7 @@ Json::Value handleprimitive(Primitive prim, Json::Value json, char *buf, int buf
 void makemorphdata(VecFloat3 vertex, VecFloat3 normal, uint32_t index, uint32_t count, char *data, int offset) {
     VecFloat3 *edit = (VecFloat3 *) (data + offset);
 
+    // each morph consists of all vertices - set to 0, except for the target vertex to morph
     for (std::size_t i = 0; i < count; i++) {
         edit[i].x = 0;
         edit[i].y = 0;
