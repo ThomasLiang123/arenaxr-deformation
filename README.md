@@ -17,7 +17,7 @@ automatically generate morphs on a .glb file object
 
 input .glb file, outputs a new morph.glb file
 
-`install jsoncpp library: https://github.com/open-source-parsers/jsoncpp`
+install jsoncpp library: https://github.com/open-source-parsers/jsoncpp
 
 `$ make`
 
